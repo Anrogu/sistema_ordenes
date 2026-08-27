@@ -3,37 +3,45 @@ package com.metalmod.tornos_produccion.Controller;
 import com.metalmod.tornos_produccion.Entity.OrdenVenta;
 import com.metalmod.tornos_produccion.Service.OrdenVentaService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Controller;
-import org.springframework.ui.Model;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
-import java.util.List;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
-@Controller
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
+@RestController
+@RequestMapping("/api/tablero")
 @RequiredArgsConstructor
 public class TableroWebController {
 
     private final OrdenVentaService ordenVentaService;
 
-    @GetMapping("/web/tablero")
-    public String mostrarTableroWeb(Model model) {
+    @GetMapping("/datos")
+    public ResponseEntity<Map<String, Object>> obtenerDatosTablero() {
         List<OrdenVenta> ordenes = ordenVentaService.obtenerTableroPrioridades();
 
-        // Pasamos la lista completa a la vista
-        model.addAttribute("ordenes", ordenes);
+        // Empaquetamos todo en un Map que Spring Boot convertirá a JSON automáticamente
+        Map<String, Object> response = new HashMap<>();
+        response.put("ordenes", ordenes);
+        response.put("totalOrdenes", ordenes.size());
 
-        // Calculamos algunos KPIs para las gráficas y tarjetas
-        long totalOrdenes = ordenes.size();
-        long ordenesCriticas = ordenes.stream()
-                .filter(o -> (o.getPrioridadVentas() != null && o.getPrioridadVentas() <= 1)
-                        || (o.getPrioridadSistema() <= 1))
-                .count();
-        long ordenesPendientes = totalOrdenes - ordenesCriticas;
+        // TOP 10 MÁS URGENTES
+        List<OrdenVenta> top10Urgentes = ordenes.stream()
+                .sorted(Comparator.comparing(OrdenVenta::getPrioridadFinal)
+                        .thenComparing(OrdenVenta::getFechaEntregaPrometida, Comparator.nullsLast(Comparator.naturalOrder())))
+                .limit(10)
+                .collect(Collectors.toList());
 
-        model.addAttribute("totalOrdenes", totalOrdenes);
-        model.addAttribute("ordenesCriticas", ordenesCriticas);
-        model.addAttribute("ordenesPendientes", ordenesPendientes);
+        response.put("top10", top10Urgentes);
 
-        // Retorna el archivo tablero.html que crearemos a continuación
-        return "tablero";
+        // Aquí puedes agregar también los conteos para las gráficas que tenías antes
+        // response.put("sysCritica", ... );
+
+        return ResponseEntity.ok(response);
     }
 }

@@ -249,19 +249,50 @@ function Tablero({ userRole }) {
   }
 
   const ordenes = datos?.ordenes || [];
-  const top10 = datos?.top10 || [];
+// NUEVO: Ordenamiento estricto también para el Top 10
+// NUEVO: Generamos el Top 10 dinámicamente desde el catálogo completo
+  const top10 = [...ordenes].sort((a, b) => {
+    // Regla 1: Ordenar por Prioridad Final
+    const prioA = a.prioridadFinal || 99;
+    const prioB = b.prioridadFinal || 99;
+    if (prioA !== prioB) return prioA - prioB;
+
+    // Regla 2: Desempate. Primero los ajustes manuales de Ventas
+    const manualA = a.prioridadVentas != null ? 0 : 1;
+    const manualB = b.prioridadVentas != null ? 0 : 1;
+    if (manualA !== manualB) return manualA - manualB;
+
+    // Regla 3: Si todo es igual, ordenar por número de orden
+    return a.idOrden.localeCompare(b.idOrden);
+  }).slice(0, 10);
+  // <-- Solo tomamos los primeros 10 elementos
 
   const countSys = (nivel) => ordenes.filter((o) => o.prioridadSistema === nivel).length;
   const countVen = (nivel) => ordenes.filter((o) => o.prioridadVentas === nivel).length;
   const countVenAuto = () => ordenes.filter((o) => o.prioridadVentas == null).length;
   const countFin = (nivel) => ordenes.filter((o) => o.prioridadFinal === nivel).length;
 
-  // NUEVO: Filtro en tiempo real para el catálogo
-  const ordenesFiltradas = ordenes.filter(orden => 
-    orden.idOrden.toLowerCase().includes(busqueda.toLowerCase()) || 
-    (orden.cliente && orden.cliente.nombre.toLowerCase().includes(busqueda.toLowerCase()))
-  );
+// NUEVO: Filtro en tiempo real y ORDENAMIENTO automático para el catálogo
+  const ordenesFiltradas = ordenes
+    .filter(orden => 
+      orden.idOrden.toLowerCase().includes(busqueda.toLowerCase()) || 
+      (orden.cliente && orden.cliente.nombre.toLowerCase().includes(busqueda.toLowerCase()))
+    )
+    .sort((a, b) => {
+      // Regla 1: Ordenar por Prioridad Final (1 Crítica siempre hasta arriba)
+      const prioA = a.prioridadFinal || 99;
+      const prioB = b.prioridadFinal || 99;
+      if (prioA !== prioB) return prioA - prioB;
 
+      // Regla 2: Desempate. Si dos órdenes tienen la misma prioridad, 
+      // poner PRIMERO las que Ventas ajustó manualmente.
+      const manualA = a.prioridadVentas != null ? 0 : 1;
+      const manualB = b.prioridadVentas != null ? 0 : 1;
+      if (manualA !== manualB) return manualA - manualB;
+
+      // Regla 3: Si todo es igual, ordenar por número de orden
+      return a.idOrden.localeCompare(b.idOrden);
+    });
   const chartOptions = {
     responsive: true,
     cutout: '65%',

@@ -9,7 +9,7 @@ import static org.apache.poi.poifs.crypt.CryptoFunctions.hashPassword;
 
 public class PasswordUtility {
     public static void main(String[] args) {
-        String password = "test";
+        String password = "sistemas";
 
         // Generate a salt and hash the password
         String hashedPassword = BCrypt.hashpw(password, BCrypt.gensalt());

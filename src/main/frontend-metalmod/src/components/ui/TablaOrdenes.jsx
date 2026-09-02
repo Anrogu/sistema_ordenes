@@ -9,17 +9,20 @@ export function TablaOrdenes({ ordenes, userRole, onCambiarPrioridad, mensajeVac
   }
 
   return (
-    <table className="w-full border-collapse text-sm">
-      <thead className={sticky ? 'sticky top-0 bg-slate-50 shadow-sm' : 'bg-slate-50'}>
+    <table className="w-full border-collapse text-sm text-left">
+      <thead className={sticky ? 'sticky top-0 bg-slate-50 shadow-sm z-10' : 'bg-slate-50'}>
         <tr className="border-b border-slate-200 font-mono text-[11px] uppercase tracking-wider text-slate-500">
-          <th className="px-4 py-2 text-left">Orden</th>
-          <th className="px-4 py-2 text-left">Cliente</th>
-          <th className="px-4 py-2 text-left">Fecha prometida</th>
-          <th className="px-4 py-2 text-left">Ajuste Ventas</th>
-          <th className="px-4 py-2 text-left">Prioridad (Final)</th>
+          <th className="px-4 py-3 text-center">Prioridad</th>
+          <th className="px-4 py-3">Orden</th>
+          <th className="px-4 py-3">Nº Parte</th>
+          <th className="px-4 py-3">Cant.</th>
+          <th className="px-4 py-3">Hechas</th>
+          <th className="px-4 py-3">Faltan</th>
+          <th className="px-4 py-3">Fecha Límite</th>
+          <th className="px-4 py-3">Ajuste Ventas</th>
         </tr>
       </thead>
-      <tbody className="divide-y divide-slate-100">
+      <tbody className="divide-y divide-slate-100 bg-white">
         {ordenes.map((orden) => (
           <FilaOrden
             key={orden.idOrden}

@@ -5,6 +5,7 @@ import com.metalmod.tornos_produccion.Entity.OrdenVenta;
 import com.metalmod.tornos_produccion.Repository.ClienteRepository;
 import com.metalmod.tornos_produccion.Repository.OrdenVentaRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.ss.usermodel.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -14,11 +15,15 @@ import java.io.InputStream;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
-import java.util.Iterator;
+import java.util.UUID;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ExcelUploadService {
+
+    private static final long CLIENTE_PLACEHOLDER_ID = 2L;
+    private static final String HEADER_MARKER = "ORDEN DE TRABAJO";
 
     private final OrdenVentaRepository ordenVentaRepository;
     private final ClienteRepository clienteRepository;
@@ -28,84 +33,132 @@ public class ExcelUploadService {
         try (InputStream inputStream = file.getInputStream();
              Workbook workbook = WorkbookFactory.create(inputStream)) {
 
-            // Tomamos la primera hoja del Excel
-            Sheet sheet = workbook.getSheetAt(0);
-            Iterator<Row> rowIterator = sheet.iterator();
+            // Hoja de control de ACP = segunda hoja del libro
+            Sheet sheet = workbook.getSheetAt(1);
 
-            // Saltamos la primera fila si es el encabezado
-            if (rowIterator.hasNext()) {
-                rowIterator.next();
+            Cliente clientePlaceholder = clienteRepository.findById(CLIENTE_PLACEHOLDER_ID)
+                    .orElseThrow(() -> new RuntimeException(
+                            "No existe el cliente placeholder (id=" + CLIENTE_PLACEHOLDER_ID + "). Créalo antes de importar."));
+
+            int headerRowIndex = encontrarFilaEncabezado(sheet);
+            if (headerRowIndex == -1) {
+                throw new RuntimeException("No se encontró la fila de encabezado ('" + HEADER_MARKER + "') en la hoja.");
             }
 
-            while (rowIterator.hasNext()) {
-                Row row = rowIterator.next();
+            int filasImportadas = 0;
+            for (int i = headerRowIndex + 1; i <= sheet.getLastRowNum(); i++) {
+                Row row = sheet.getRow(i);
 
-                // Si la celda de ID está vacía, terminamos la lectura
-                Cell idCell = row.getCell(0);
-                if (idCell == null || idCell.getCellType() == CellType.BLANK) {
+                // Columna B (índice 1) = folio de ACP. Vacío = fin de la tabla.
+                Cell folioCell = row == null ? null : row.getCell(1);
+                String numeroOrdenTrabajo = getCellValueAsString(folioCell);
+                if (numeroOrdenTrabajo.isBlank()) {
                     break;
                 }
+                final String numeroOrdenTrabajoKey = numeroOrdenTrabajo.trim().toUpperCase();
 
-                String idOrden = getCellValueAsString(idCell);
-                String nombreCliente = getCellValueAsString(row.getCell(1));
+                String numeroParte = getCellValueAsString(row.getCell(2)).trim().toUpperCase();
+                Integer cantidad = getCellValueAsInteger(row.getCell(3));
+                Integer cantidadTerminada = getCellValueAsInteger(row.getCell(4));
+                LocalDate fechaInicio = getCellValueAsDate(row.getCell(6));
+                LocalDate fechaEntrega = getCellValueAsDate(row.getCell(7));
 
-                // Procesar la fecha de entrega (Columna C)
-                java.util.Date dateValue = row.getCell(2).getDateCellValue();
-                LocalDate fechaEntrega = dateValue.toInstant()
-                        .atZone(ZoneId.systemDefault())
-                        .toLocalDate();
-
-                // Buscamos si el cliente existe, si no, lo creamos
-                Cliente cliente = clienteRepository.findByNombre(nombreCliente)
+                if (cantidad == null) {
+                    log.warn("Orden {} sin CANTIDAD en el Excel — se guarda con cantidad en null.", numeroOrdenTrabajoKey);
+                }
+                if (numeroParte.isBlank() || cantidad == null) {
+                    log.warn("Orden {} incompleta en el Excel (sin número de parte o cantidad) — se omite.", numeroOrdenTrabajoKey);
+                    continue;
+                }
+                OrdenVenta orden = ordenVentaRepository.findByNumeroOrdenTrabajo(numeroOrdenTrabajoKey)
                         .orElseGet(() -> {
-                            Cliente nuevoCliente = new Cliente();
-                            nuevoCliente.setNombre(nombreCliente);
-                            return clienteRepository.save(nuevoCliente);
+                            OrdenVenta nueva = new OrdenVenta();
+                            nueva.setIdOrden(UUID.randomUUID().toString());
+                            nueva.setNumeroOrdenTrabajo(numeroOrdenTrabajoKey);
+                            nueva.setCliente(clientePlaceholder);
+                            nueva.setEstado("EN PROCESO");
+                            return nueva;
                         });
 
-                // Buscar la orden existente o crear una nueva
-                OrdenVenta orden = ordenVentaRepository.findById(idOrden)
-                        .orElse(new OrdenVenta());
+                orden.setNumeroParte(numeroParte);
+                orden.setCantidad(cantidad);
+                orden.setCantidadTerminada(cantidadTerminada);
 
-                // Si es una orden totalmente nueva, inicializamos sus campos básicos
-                if (orden.getIdOrden() == null) {
-                    orden.setIdOrden(idOrden);
-                    orden.setEstado("PENDIENTE");
-                }
-
-                // Actualizamos los datos (el estado manual de prioridadVentas no se toca)
-                orden.setCliente(cliente);
+                orden.setFechaInicio(fechaInicio);
                 orden.setFechaEntregaPrometida(fechaEntrega);
-
-                // CÁLCULO DE PRIORIDAD DEL SISTEMA (Matemático)
-                long diasRestantes = ChronoUnit.DAYS.between(LocalDate.now(), fechaEntrega);
-
-                if (diasRestantes <= 0) {
-                    orden.setPrioridadSistema(1); // CRÍTICA: Vencida o se entrega hoy
-                } else if (diasRestantes <= 3) {
-                    orden.setPrioridadSistema(2); // ALTA: Faltan 1 a 3 días
-                }
-                else if (diasRestantes<= 7){
-                    orden.setPrioridadSistema(3); // NORMAL: Faltan más de 3 días
-                }else {
-                    orden.setPrioridadSistema(4); // BAJA (Azul): Más de una semana
-                }
+                orden.setEstado(calcularEstado(cantidad, cantidadTerminada));
+                orden.setPrioridadSistema(calcularPrioridadSistema(fechaEntrega));
 
                 ordenVentaRepository.save(orden);
+                filasImportadas++;
             }
 
+            log.info("Importación de Excel completada: {} órdenes procesadas.", filasImportadas);
+
         } catch (Exception e) {
-            throw new RuntimeException("Error al procesar el archivo Excel: " + e.getMessage());
+            throw new RuntimeException("Error al procesar el archivo Excel: " + e.getMessage(), e);
         }
     }
 
-    // Método auxiliar para evitar errores de tipo de celda
+    private int encontrarFilaEncabezado(Sheet sheet) {
+        for (int i = 0; i <= sheet.getLastRowNum(); i++) {
+            Row row = sheet.getRow(i);
+            if (row == null) continue;
+            String valorColumnaB = getCellValueAsString(row.getCell(1)).trim();
+            if (valorColumnaB.equalsIgnoreCase(HEADER_MARKER)) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private String calcularEstado(Integer cantidad, Integer cantidadTerminada) {
+        if (cantidad == null || cantidad == 0) return "SIN INICIAR";
+        if (cantidadTerminada == null || cantidadTerminada == 0) return "SIN INICIAR";
+        if (cantidadTerminada >= cantidad) return "COMPLETADA";
+        return "EN PROCESO";
+    }
+
+    private Integer calcularPrioridadSistema(LocalDate fechaEntrega) {
+        if (fechaEntrega == null) return 4;
+        long diasRestantes = ChronoUnit.DAYS.between(LocalDate.now(), fechaEntrega);
+        if (diasRestantes <= 0) return 1;      // CRÍTICA
+        if (diasRestantes <= 3) return 2;      // ALTA
+        if (diasRestantes <= 7) return 3;      // NORMAL
+        return 4;                              // BAJA
+    }
+
+    // --- MÉTODOS AUXILIARES BLINDADOS CONTRA CELDAS ROTAS DE EXCEL ---
+
     private String getCellValueAsString(Cell cell) {
-        if (cell == null) return "";
+        if (cell == null || cell.getCellType() == CellType.ERROR) return "";
         return switch (cell.getCellType()) {
-            case STRING -> cell.getStringCellValue();
-            case NUMERIC -> String.valueOf((int) cell.getNumericCellValue());
+            case STRING -> cell.getStringCellValue().trim();
+            case NUMERIC -> String.valueOf((long) cell.getNumericCellValue());
             default -> "";
         };
+    }
+
+    private Integer getCellValueAsInteger(Cell cell) {
+        if (cell == null || cell.getCellType() == CellType.ERROR || cell.getCellType() == CellType.BLANK) return null;
+        if (cell.getCellType() == CellType.NUMERIC) {
+            return (int) cell.getNumericCellValue();
+        }
+        if (cell.getCellType() == CellType.STRING) {
+            try {
+                return Integer.parseInt(cell.getStringCellValue().trim());
+            } catch (NumberFormatException e) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    private LocalDate getCellValueAsDate(Cell cell) {
+        if (cell == null || cell.getCellType() == CellType.ERROR || cell.getCellType() == CellType.BLANK) return null;
+        if (cell.getCellType() == CellType.NUMERIC && DateUtil.isCellDateFormatted(cell)) {
+            return cell.getDateCellValue().toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
+        }
+        return null;
     }
 }

@@ -32,14 +32,32 @@ public class OrdenVenta {
 
     @Column(length = 50)
     private String estado;
-
-    // @Transient evita que Hibernate intente crear una columna en PostgreSQL para esto.
-    // Es solo una propiedad calculada en memoria (La opinión de Ventas domina sobre el Sistema).
     @Transient
     public Integer getPrioridadFinal() {
         if (this.prioridadVentas != null) {
             return this.prioridadVentas;
         }
         return this.prioridadSistema != null ? this.prioridadSistema : 3;
+    }
+    @Column(name = "numero_orden_trabajo", unique = true)
+    private String numeroOrdenTrabajo;
+
+    @Column(name = "numero_parte")
+    private String numeroParte;
+
+    @Column(name = "cantidad")
+    private Integer cantidad;
+
+    @Column(name = "cantidad_terminada")
+    private Integer cantidadTerminada;
+
+    @Column(name = "fecha_inicio")
+    private LocalDate fechaInicio;
+
+    public Integer getRestante() {
+        if (this.cantidad != null && this.cantidadTerminada != null) {
+            return this.cantidad - this.cantidadTerminada;
+        }
+        return this.cantidad;
     }
 }

@@ -1,5 +1,6 @@
 package com.metalmod.tornos_produccion.Controller;
 
+import com.metalmod.tornos_produccion.Dto.AgregarCantidadRequest;
 import com.metalmod.tornos_produccion.Entity.OrdenVenta;
 import com.metalmod.tornos_produccion.Entity.SeguimientoAcp;
 import com.metalmod.tornos_produccion.Service.ExcelUploadService;
@@ -7,6 +8,7 @@ import com.metalmod.tornos_produccion.Service.OrdenVentaService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -59,6 +61,21 @@ public class OrdenVentaController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body("Error al subir el archivo: " + e.getMessage());
         }
+    }
+    // GET: lista de números de parte para el selector
+    @GetMapping("/partes")
+    @PreAuthorize("hasRole('VENTAS')")
+    public ResponseEntity<List<String>> listarPartes() {
+        return ResponseEntity.ok(ordenVentaService.listarNumerosParte());
+    }
+
+    // POST: sumar cantidad a una pieza (crea orden si no hay una abierta)
+    @PostMapping("/ventas/agregar-cantidad")
+    @PreAuthorize("hasRole('VENTAS')")
+    public ResponseEntity<OrdenVenta> agregarCantidad(@RequestBody AgregarCantidadRequest request) {
+        OrdenVenta orden = ordenVentaService.agregarCantidadPorNumeroParte(
+                request.getNumeroParte(), request.getCantidad());
+        return ResponseEntity.ok(orden);
     }
 
 }

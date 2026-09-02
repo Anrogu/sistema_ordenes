@@ -17,7 +17,7 @@ public class ProduccionScheduler {
     private final OrdenVentaRepository ordenVentaRepository;
 
     // Se ejecuta automáticamente todos los días a la 00:01 AM
-    @Scheduled(cron = "0 1 0 * * *")
+    @Scheduled(cron = "0 * * * * *", zone = "America/Mexico_City")
     public void recalcularPrioridadesDiarias() {
         System.out.println("⏳ Iniciando recálculo automático de prioridades...");
 

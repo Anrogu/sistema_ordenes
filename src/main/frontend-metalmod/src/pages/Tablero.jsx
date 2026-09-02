@@ -160,7 +160,7 @@ export function Tablero() {
   };
 
   const ordenes = datos?.ordenes || [];
-
+const ordenesConMultiplesFechas = datos?.ordenesConMultiplesFechas || [];
   const ordenesOrdenadas = useMemo(() => [...ordenes].sort(compararPorPrioridad), [ordenes]);
   const top10 = useMemo(() => ordenesOrdenadas.slice(0, 10), [ordenesOrdenadas]);
   const ordenesFiltradas = useMemo(
@@ -394,12 +394,13 @@ export function Tablero() {
             </span>
           </div>
           <div className="overflow-x-auto">
-            <TablaOrdenes
-              ordenes={top10}
-              userRole={userRole}
-              onCambiarPrioridad={actualizarPrioridad}
-              mensajeVacio="No hay órdenes registradas"
-            />
+	<TablaOrdenes
+  	ordenes={top10}
+  	userRole={userRole}
+  	onCambiarPrioridad={actualizarPrioridad}
+  	mensajeVacio="No hay órdenes registradas"
+  	ordenesConMultiplesFechas={ordenesConMultiplesFechas}
+	/>
           </div>
         </section>
 

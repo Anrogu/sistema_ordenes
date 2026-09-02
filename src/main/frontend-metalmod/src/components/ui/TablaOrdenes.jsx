@@ -1,13 +1,14 @@
 import PropTypes from 'prop-types';
 import { FilaOrden } from './FilaOrden';
 
-export function TablaOrdenes({ ordenes, userRole, onCambiarPrioridad, mensajeVacio, sticky = false }) {
-  if (ordenes.length === 0) {
-    return (
-      <p className="px-4 py-8 text-center text-slate-500 font-mono text-xs">{mensajeVacio}</p>
-    );
-  }
-
+export function TablaOrdenes({ 
+  ordenes, 
+  userRole, 
+  onCambiarPrioridad, 
+  mensajeVacio, 
+  sticky = false, 
+  ordenesConMultiplesFechas = [] 
+}) {
   return (
     <table className="w-full border-collapse text-sm text-left">
       <thead className={sticky ? 'sticky top-0 bg-slate-50 shadow-sm z-10' : 'bg-slate-50'}>
@@ -23,14 +24,23 @@ export function TablaOrdenes({ ordenes, userRole, onCambiarPrioridad, mensajeVac
         </tr>
       </thead>
       <tbody className="divide-y divide-slate-100 bg-white">
-        {ordenes.map((orden) => (
-          <FilaOrden
-            key={orden.idOrden}
-            orden={orden}
-            userRole={userRole}
-            onCambiarPrioridad={onCambiarPrioridad}
-          />
-        ))}
+        {ordenes.length === 0 ? (
+          <tr>
+            <td colSpan="8" className="px-4 py-6 text-center text-slate-400">
+              {mensajeVacio}
+            </td>
+          </tr>
+        ) : (
+          ordenes.map((orden) => (
+            <FilaOrden
+              key={orden.idOrden}
+              orden={orden}
+              userRole={userRole}
+              onCambiarPrioridad={onCambiarPrioridad}
+              tieneMultiplesFechas={ordenesConMultiplesFechas.includes(orden.idOrden)}
+            />
+          ))
+        )}
       </tbody>
     </table>
   );
@@ -42,4 +52,5 @@ TablaOrdenes.propTypes = {
   onCambiarPrioridad: PropTypes.func.isRequired,
   mensajeVacio: PropTypes.string.isRequired,
   sticky: PropTypes.bool,
+  ordenesConMultiplesFechas: PropTypes.array,
 };

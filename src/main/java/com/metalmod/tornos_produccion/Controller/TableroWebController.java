@@ -25,22 +25,19 @@ public class TableroWebController {
     public ResponseEntity<Map<String, Object>> obtenerDatosTablero() {
         List<OrdenVenta> ordenes = ordenVentaService.obtenerTableroPrioridades();
 
-        // Empaquetamos todo en un Map que Spring Boot convertirá a JSON automáticamente
         Map<String, Object> response = new HashMap<>();
         response.put("ordenes", ordenes);
         response.put("totalOrdenes", ordenes.size());
 
-        // TOP 10 MÁS URGENTES
         List<OrdenVenta> top10Urgentes = ordenes.stream()
                 .sorted(Comparator.comparing(OrdenVenta::getPrioridadFinal)
                         .thenComparing(OrdenVenta::getFechaEntregaPrometida, Comparator.nullsLast(Comparator.naturalOrder())))
                 .limit(10)
                 .collect(Collectors.toList());
-
         response.put("top10", top10Urgentes);
 
-        // Aquí puedes agregar también los conteos para las gráficas que tenías antes
-        // response.put("sysCritica", ... );
+        // NUEVO: ids de órdenes con más de una fecha de entrega
+        response.put("ordenesConMultiplesFechas", ordenVentaService.listarOrdenesConMultiplesFechas());
 
         return ResponseEntity.ok(response);
     }

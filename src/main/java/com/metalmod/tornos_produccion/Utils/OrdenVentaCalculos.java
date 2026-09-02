@@ -1,7 +1,10 @@
 package com.metalmod.tornos_produccion.Utils;
 
+import com.metalmod.tornos_produccion.Entity.EntregaParcial;
+
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 
 public class OrdenVentaCalculos {
 
@@ -21,5 +24,14 @@ public class OrdenVentaCalculos {
         if (diasRestantes <= 3) return 2;
         if (diasRestantes <= 7) return 3;
         return 4;
+    }
+    public static LocalDate fechaParaPrioridad(LocalDate fechaEntregaPrometida, List<EntregaParcial> entregas) {
+        if (entregas != null && !entregas.isEmpty()) {
+            return entregas.stream()
+                    .map(EntregaParcial::getFechaEntrega)
+                    .min(LocalDate::compareTo)
+                    .orElse(fechaEntregaPrometida);
+        }
+        return fechaEntregaPrometida;
     }
 }

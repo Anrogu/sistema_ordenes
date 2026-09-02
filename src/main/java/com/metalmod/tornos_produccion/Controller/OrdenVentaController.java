@@ -1,6 +1,8 @@
 package com.metalmod.tornos_produccion.Controller;
 
+import com.metalmod.tornos_produccion.Dto.ActualizarEntregasRequest;
 import com.metalmod.tornos_produccion.Dto.AgregarCantidadRequest;
+import com.metalmod.tornos_produccion.Entity.EntregaParcial;
 import com.metalmod.tornos_produccion.Entity.OrdenVenta;
 import com.metalmod.tornos_produccion.Entity.SeguimientoAcp;
 import com.metalmod.tornos_produccion.Service.ExcelUploadService;
@@ -76,6 +78,18 @@ public class OrdenVentaController {
         OrdenVenta orden = ordenVentaService.agregarCantidadPorNumeroParte(
                 request.getNumeroParte(), request.getCantidad());
         return ResponseEntity.ok(orden);
+    }
+    @GetMapping("/{idOrden}/entregas")
+    public ResponseEntity<List<EntregaParcial>> listarEntregas(@PathVariable String idOrden) {
+        return ResponseEntity.ok(ordenVentaService.listarEntregas(idOrden));
+    }
+
+    @PutMapping("/{idOrden}/entregas")
+    @PreAuthorize("hasRole('VENTAS')")
+    public ResponseEntity<List<EntregaParcial>> actualizarEntregas(
+            @PathVariable String idOrden,
+            @RequestBody ActualizarEntregasRequest request) {
+        return ResponseEntity.ok(ordenVentaService.actualizarEntregas(idOrden, request.getEntregas()));
     }
 
 }
